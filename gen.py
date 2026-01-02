@@ -9,28 +9,40 @@ st.write("「表示価格」と「最終価格」の乖離をテックの力で�
 col_in1, col_in2 = st.columns(2)
 
 with col_in1:
-    # 単位を万円に固定
     price_man = st.number_input("物件の表示価格（万円）", value=5000, step=100)
 
 with col_in2:
     is_loan = st.checkbox("住宅ローンを利用する", value=True)
 
-# --- 計算ロジック（ここでの計算結果を変数に格納） ---
+# --- 計算ロジック ---
 # 1. 仲介手数料 (3% + 6万) * 消費税1.1
 broker_fee = (price_man * 0.03 + 6) * 1.1
 
-# 2. 印紙代（軽減税率適用：1000万〜5000万は1万、5000万超〜1億は3万）
+# 2. 印紙代の計算（修正箇所）
+# 売買契約書の印紙代（軽減税率適用）
 if price_man <= 5000:
-    stamp_tax = 1.0
+    base_stamp = 1.0  # 1万円
 elif price_man <= 10000:
-    stamp_tax = 3.0
+    base_stamp = 3.0  # 3万円
 else:
-    stamp_tax = 6.0
+    base_stamp = 6.0  # 6万円
 
-# 3. 登録免許税・司法書士報酬（概算で物件価格の1.5%と設定）
+# ローン契約書（金銭消費貸借契約）の印紙代
+loan_stamp = 0.0
+if is_loan:
+    if price_man <= 5000:
+        loan_stamp = 2.0  # 2万円
+    elif price_man <= 10000:
+        loan_stamp = 6.0  # 6万円
+    else:
+        loan_stamp = 10.0 # 10万円
+
+stamp_tax = base_stamp + loan_stamp
+
+# 3. 登録免許税・司法書士報酬
 reg_tax_and_legal = price_man * 0.015
 
-# 4. 銀行費用（保証料・事務手数料：借入額の約2.2%と想定）
+# 4. 銀行費用
 bank_fee = price_man * 0.022 if is_loan else 0.0
 
 # 5. 合計諸費用の計算
@@ -40,21 +52,17 @@ final_price = price_man + total_overhead
 # --- 表示セクション ---
 st.divider()
 
-# 最終価格を大きく表示
 st.markdown(f"### 🏁 最終的な着地金額（コミコミ）")
-st.system_code = st.header(f"**{final_price:.1f} 万円**")
+st.header(f"**{final_price:.1f} 万円**")
 
-# 物件価格と諸費用の比率を視覚化
 st.progress(price_man / final_price)
 st.caption(f"内訳：物件価格 { (price_man/final_price)*100:.1f}% ／ 諸費用 { (total_overhead/final_price)*100:.1f}%")
 
-# --- エラーを防ぐため、計算後にexpanderを表示 ---
 with st.expander(f"⚠️ なぜ表示金額より 【{total_overhead:.1f}万円】 も増えるのか？"):
     st.write("日本の不動産取引では、物件価格以外に以下のコストが必ず発生します。")
     
-    # 費用の内訳をテーブル形式で表示
     data = {
-        "項目": ["仲介手数料 (税込)", "印紙税", "登記費用・司法書士報酬", "銀行融資費用", "合計諸費用"],
+        "項目": ["仲介手数料 (税込)", "印紙税 (契約書2種合算)", "登記費用・司法書士報酬", "銀行融資費用", "合計諸費用"],
         "概算金額": [
             f"{broker_fee:.1f} 万円",
             f"{stamp_tax:.1f} 万円",
@@ -65,10 +73,13 @@ with st.expander(f"⚠️ なぜ表示金額より 【{total_overhead:.1f}万円
     }
     st.table(data)
     
-    st.info("※これに加え、固定資産税の日割り精算や火災保険料が別途発生します。")
+    if is_loan:
+        st.info(f"※印紙税の内訳：売買契約分 {base_stamp:.1f}万円 ＋ ローン契約分 {loan_stamp:.1f}万円")
+    else:
+        st.info(f"※ローンを利用しないため、ローン契約用の印紙税は発生しません。")
 
 # 中国人コミュニティ向け（人民元換算）
-cny_rate = 0.05 # 1円＝0.05元の想定（適宜調整）
+cny_rate = 0.05 
 st.subheader(f"💴 人民元換算目安: 約 {(final_price * cny_rate):.2f} 万元")
 
 st.divider()
